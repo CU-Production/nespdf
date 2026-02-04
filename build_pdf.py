@@ -131,6 +131,11 @@ var romOk = (romStr.length >= 16 && romStr.indexOf(nesHeader) === 0);
 if (!romOk) debugLog("rom bad len=" + romStr.length + " h=" + (romStr.length>=4 ? [romStr.charCodeAt(0),romStr.charCodeAt(1),romStr.charCodeAt(2),romStr.charCodeAt(3)].join(",") : "?"), 4);
 var running = false;
 var frameCount = 0;
+var pendingKeyUps = [];
+function scheduleKeyUp(btn) {
+  var fc = (typeof app !== "undefined" && app.nespdf_frameCount !== undefined) ? app.nespdf_frameCount : frameCount;
+  pendingKeyUps.push({ btn: btn, atFrame: fc + 5 });
+}
 function runOneFrame() {
   var n = (typeof app !== "undefined" && app.nespdf_nes) ? app.nespdf_nes : nes;
   if (n && typeof n.frame === "function") { try { n.frame(); } catch(e) {} }
@@ -139,6 +144,13 @@ function tick() {
   if (typeof app !== "undefined" && app.nespdf_running === false) return;
   if (!running && (typeof app === "undefined" || app.nespdf_running !== true)) return;
   runOneFrame();
+  var fc = (typeof app !== "undefined" && app.nespdf_frameCount !== undefined) ? app.nespdf_frameCount : frameCount;
+  var next = [];
+  for (var i = 0; i < pendingKeyUps.length; i++) {
+    if (fc >= pendingKeyUps[i].atFrame) keyUp(pendingKeyUps[i].btn);
+    else next.push(pendingKeyUps[i]);
+  }
+  pendingKeyUps = next;
   if (typeof app !== "undefined" && app.nespdf_useInterval) return;
   if (typeof app !== "undefined" && app.setTimeout) app.setTimeout("app.nespdf_tick()", 33);
   else if (typeof setTimeout !== "undefined") setTimeout(tick, 33);
@@ -159,24 +171,24 @@ function startEmulator() {
   else { running = false; if (typeof app !== "undefined") app.nespdf_running = false; debugLog("no timer", 1); return; }
 }
 if (typeof setTimeout !== "undefined") setTimeout(startEmulator, 350); else if (typeof app !== "undefined" && app.setTimeout) app.setTimeout("startEmulator()", 350); else startEmulator();
-function keyDown(btn) { try { nes.buttonDown(1, btn); } catch(e) {} }
-function keyUp(btn) { try { nes.buttonUp(1, btn); } catch(e) {} }
-if (typeof globalThis !== "undefined") { globalThis.startEmulator = startEmulator; globalThis.keyDown = keyDown; globalThis.keyUp = keyUp; globalThis.debugLog = debugLog; globalThis.tick = tick; globalThis.nes = nes; if (typeof jsnes !== "undefined") globalThis.jsnes = jsnes; }
-if (typeof app !== "undefined") { app.nespdf_tick = tick; app.startEmulator = startEmulator; app.nespdf_screenFields = screenFields; app.nespdf_debugField2 = debugField2; app.nespdf_rowCache = rowCache; app.nespdf_getField = getField; app.nespdf_debugLog = debugLog; }
+function keyDown(btn) { var n = (typeof app !== "undefined" && app.nespdf_nes) ? app.nespdf_nes : nes; try { if (n) n.buttonDown(1, btn); } catch(e) {} }
+function keyUp(btn) { var n = (typeof app !== "undefined" && app.nespdf_nes) ? app.nespdf_nes : nes; try { if (n) n.buttonUp(1, btn); } catch(e) {} }
+if (typeof globalThis !== "undefined") { globalThis.startEmulator = startEmulator; globalThis.keyDown = keyDown; globalThis.keyUp = keyUp; globalThis.scheduleKeyUp = scheduleKeyUp; globalThis.debugLog = debugLog; globalThis.tick = tick; globalThis.nes = nes; if (typeof jsnes !== "undefined") globalThis.jsnes = jsnes; }
+if (typeof app !== "undefined") { app.nespdf_tick = tick; app.startEmulator = startEmulator; app.nespdf_keyDown = keyDown; app.nespdf_keyUp = keyUp; app.nespdf_scheduleKeyUp = scheduleKeyUp; app.nespdf_screenFields = screenFields; app.nespdf_debugField2 = debugField2; app.nespdf_rowCache = rowCache; app.nespdf_getField = getField; app.nespdf_debugLog = debugLog; }
 """
 
-# Button config: (field name, label, js snippet for click). Order: Run, U, D, L, R, Select, Start, B, A (NES layout)
-# Each script starts with debugLog to debug_3 so we can see if the button fired in Chrome
+# jsnes Controller: A=0, B=1, SELECT=2, START=3, UP=4, DOWN=5, LEFT=6, RIGHT=7 (controller.js)
+# Key release via game loop: scheduleKeyUp(btn) queues keyUp for 5 frames later (like jsnes example: buttonDown then buttonUp)
 BUTTONS = [
     ("btn_Run", "Run", "var D=globalThis.debugLog||function(){}; D('Run',3); var fn=(globalThis.startEmulator||(typeof startEmulator==='function'?startEmulator:null)); if(fn) fn();"),
-    ("btn_Up", "U", "var D=globalThis.debugLog||function(){}; D('U',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_UP); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_UP)\", 150);"),
-    ("btn_Down", "D", "var D=globalThis.debugLog||function(){}; D('D',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_DOWN); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_DOWN)\", 150);"),
-    ("btn_Left", "L", "var D=globalThis.debugLog||function(){}; D('L',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_LEFT); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_LEFT)\", 150);"),
-    ("btn_Right", "R", "var D=globalThis.debugLog||function(){}; D('R',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_RIGHT); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_RIGHT)\", 150);"),
-    ("btn_Select", "Se", "var D=globalThis.debugLog||function(){}; D('Se',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_SELECT); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_SELECT)\", 150);"),
-    ("btn_Start", "St", "var D=globalThis.debugLog||function(){}; D('St',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_START); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_START)\", 150);"),
-    ("btn_B", "B", "var D=globalThis.debugLog||function(){}; D('B',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_B); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_B)\", 150);"),
-    ("btn_A", "A", "var D=globalThis.debugLog||function(){}; D('A',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=globalThis.keyDown||keyDown,U=globalThis.keyUp||keyUp; K(C.BUTTON_A); app.setTimeout(\"U((globalThis.jsnes||jsnes).Controller.BUTTON_A)\", 150);"),
+    ("btn_Up", "U", "var D=globalThis.debugLog||function(){}; D('U',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_UP); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(4);"),
+    ("btn_Down", "D", "var D=globalThis.debugLog||function(){}; D('D',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_DOWN); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(5);"),
+    ("btn_Left", "L", "var D=globalThis.debugLog||function(){}; D('L',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_LEFT); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(6);"),
+    ("btn_Right", "R", "var D=globalThis.debugLog||function(){}; D('R',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_RIGHT); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(7);"),
+    ("btn_Select", "Se", "var D=globalThis.debugLog||function(){}; D('Se',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_SELECT); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(2);"),
+    ("btn_Start", "St", "var D=globalThis.debugLog||function(){}; D('St',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_START); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(3);"),
+    ("btn_B", "B", "var D=globalThis.debugLog||function(){}; D('B',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_B); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(1);"),
+    ("btn_A", "A", "var D=globalThis.debugLog||function(){}; D('A',3); var J=globalThis.jsnes||jsnes,C=J.Controller,K=(typeof app!=='undefined'&&app.nespdf_keyDown)||globalThis.keyDown; if(K) K(C.BUTTON_A); var S=(typeof app!=='undefined'&&app.nespdf_scheduleKeyUp)||globalThis.scheduleKeyUp; if(S) S(0);"),
 ]
 NUM_BUTTONS = len(BUTTONS)
 
@@ -185,7 +197,9 @@ PAGE_W, PAGE_H = 612, 792
 # Screen at top of page (PDF y: 0=bottom, 792=top). Row 0 at top.
 SCREEN_X = 50
 SCREEN_TOP = 752  # y of top of first row
-ROW_HEIGHT = 1.8
+# NES 256x240, 8:7 pixel aspect -> display ratio ~1.22. 128*CHAR_WIDTH/(120*ROW_HEIGHT)=1.22 => ROW_HEIGHT~1.4
+# Field height = ROW_HEIGHT (no overlap) so all 120 rows visible
+ROW_HEIGHT = 1.4
 CHAR_WIDTH = 1.6
 BTN_SIZE = 28
 # NES-style layout: below screen, moved up (y +160). (x,y) = bottom-left of button.
@@ -307,7 +321,7 @@ def main():
                 SCREEN_X,
                 y,
                 DISPLAY_COLS * CHAR_WIDTH,
-                ROW_HEIGHT + 0.2,
+                ROW_HEIGHT,
                 with_border_style=True,
             )
         )
