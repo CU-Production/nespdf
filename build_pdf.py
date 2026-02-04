@@ -217,9 +217,10 @@ def stream_escape(s):
     return s.replace("\rendstream", "\r").replace("\nendstream", "\n")
 
 
-def make_text_field(obj_id, name, x, y, w, h, default_val="", with_border_style=False):
+def make_text_field(obj_id, name, x, y, w, h, default_val="", with_border_style=False, use_monospace=False):
     v = pdf_escape(default_val) if default_val else ""
     bs = "/BS << /W 0 >> " if with_border_style else ""
+    da = " /DA (/Cour 8 Tf 0 g)" if use_monospace else ""
     return f"""{obj_id} 0 obj
 <<
 {bs}/F 4
@@ -233,7 +234,7 @@ def make_text_field(obj_id, name, x, y, w, h, default_val="", with_border_style=
 /Subtype /Widget
 /T ({pdf_escape(name)})
 /Type /Annot
-/V ({v})
+/V ({v}){da}
 >>
 endobj
 """
@@ -318,6 +319,7 @@ def main():
                 DISPLAY_COLS * CHAR_WIDTH,
                 ROW_HEIGHT,
                 with_border_style=True,
+                use_monospace=True,
             )
         )
 
@@ -344,7 +346,7 @@ def main():
 
     catalog = f"""1 0 obj
 <<
-/AcroForm << /Fields [ {field_list_str} ] /DR << /Font << /Helv 10 0 R >> >> /DA (/Helv 8 Tf 0 g) >>
+/AcroForm << /Fields [ {field_list_str} ] /DR << /Font << /Helv 10 0 R /Cour 11 0 R >> >> /DA (/Helv 8 Tf 0 g) >>
 /OpenAction << /JS {SCRIPT_MAIN_ID} 0 R /S /JavaScript >>
 /Pages 2 0 R
 /Type /Catalog
@@ -367,7 +369,7 @@ endobj
 /Annots [ {field_list_str} ]
 /MediaBox [ 0 0 {PAGE_W} {PAGE_H} ]
 /Parent 2 0 R
-/Resources << /Font << /Helv 10 0 R >> >>
+/Resources << /Font << /Helv 10 0 R /Cour 11 0 R >> >>
 /Type /Page
 >>
 endobj
@@ -376,6 +378,13 @@ endobj
     font = """10 0 obj
 <<
 /BaseFont /Helvetica
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+11 0 obj
+<<
+/BaseFont /Courier
 /Subtype /Type1
 /Type /Font
 >>
