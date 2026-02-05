@@ -5,8 +5,8 @@ A NES emulator that runs inside a PDF file. Inspired by [DoomPDF](https://doompd
 ## Requirements
 
 - **Python 3** (no extra packages)
-- `jsnes.min.js` – copy from jsnes build or npm
-- `mario.nes` – NES ROM (place in project dir; ensure you have the right to use it)
+- `jsnes.min.js`
+- `mario.nes`
 
 ## Build
 
